@@ -123,6 +123,7 @@ holds your API key). The important keys:
 | `max_power` | `8` → `max_pixels = 64*64*8*8` = 262144 = 512×512 cap |
 | `max_cached_pipelines` | compiled pipelines to keep; each is ~2 GB of shared memory |
 | `extra_slow_worker`, `limit_max_steps` | sent to the server; mark the worker as slow and bound job length |
+| `censor_nsfw`, `censorlist` | extra reasons to censor (see below) |
 | `enable_csam`, `csam_device` | the CSAM heuristic and where its CLIP runs |
 
 Capabilities that are *not* implemented (`img2img`, `painting`, `controlnet`, `lora`,
@@ -172,6 +173,12 @@ eligible), polls to completion and writes the returned image to `tmp/`.
   that file.
 - Censoring replaces the image with a placeholder and reports `state: censored` /
   `csam` to the server; it does not prevent generation.
+- The NSFW censor runs when a job asks for it, when the prompt contains a `censorlist`
+  word, or when `censor_nsfw` is set on a worker advertising `nsfw: false` — the same
+  three reasons, and the same three placeholder images, as the reference worker. As
+  there, a `censorlist` hit does not bypass the classifier; it forces the check to run
+  and selects a different placeholder. Unlike stock, the placeholder is resized to the
+  job's dimensions rather than always pasted at 512×512.
 - One thread, one image at a time. This hardware cannot do more, and claiming otherwise
   would just queue jobs behind it.
 

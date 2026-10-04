@@ -30,6 +30,8 @@ Upstream: https://github.com/Haidra-Org/AI-Horde-Worker  (AGPL-3.0)
       Copyright (c) 2021 OpenAI — see below).
 
   * assets/nsfw_censor_sfw_request.png
+    assets/nsfw_censor_sfw_worker.png
+    assets/nsfw_censor_censorlist.png
     assets/nsfw_censor_csam.png
       Censor placeholder images taken from AI-Horde-Worker's `assets/`.
 

@@ -33,9 +33,18 @@ from safety import SafetyChecker  # noqa: E402
 log = logging.getLogger("ov-sd")
 
 _ASSETS = os.path.join(HERE, "assets")
-CENSOR_IMAGE = os.path.join(_ASSETS, "nsfw_censor_sfw_request.png")
+# Placeholder images, one per censor reason — the same four the reference worker uses.
+CENSOR_IMAGES = {
+    "Requested": os.path.join(_ASSETS, "nsfw_censor_sfw_request.png"),
+    "SFW worker": os.path.join(_ASSETS, "nsfw_censor_sfw_worker.png"),
+    "Censorlist": os.path.join(_ASSETS, "nsfw_censor_censorlist.png"),
+}
 CSAM_CENSOR_IMAGE = os.path.join(_ASSETS, "nsfw_censor_csam.png")
 MODEL_REFERENCE = "horde_model_reference/legacy/stable_diffusion.json"
+
+
+def _load_image(path: str):
+    return Image.open(path).convert("RGB") if os.path.exists(path) else None
 
 
 def setup_logging(verbose: bool = False):
@@ -101,10 +110,14 @@ class Worker:
             max_cached=int(cfg.get("max_cached_pipelines", 2)),
         )
         self.safety = SafetyChecker(self.ov_dir, device="CPU")
-        self.censor_image = Image.open(CENSOR_IMAGE).convert("RGB") if os.path.exists(CENSOR_IMAGE) else None
-        self.csam_censor_image = (
-            Image.open(CSAM_CENSOR_IMAGE).convert("RGB") if os.path.exists(CSAM_CENSOR_IMAGE) else None
-        )
+        self.censor_images = {reason: _load_image(path) for reason, path in CENSOR_IMAGES.items()}
+        self.csam_censor_image = _load_image(CSAM_CENSOR_IMAGE)
+        # Censoring policy, mirroring the reference worker's bridge data.
+        #   censor_nsfw : censor NSFW results even when the job did not ask (only has an
+        #                 effect on a worker advertising nsfw: false)
+        #   censorlist  : prompts containing any of these words force the censor check
+        self.censor_nsfw = bool(cfg.get("censor_nsfw", False))
+        self.censorlist = [w for w in (cfg.get("censorlist") or []) if w]
         self.enable_csam = bool(cfg.get("enable_csam", True))
         self.csam_device = cfg.get("csam_device", "CPU")
         self.model_info = self._load_model_info()
@@ -126,6 +139,10 @@ class Worker:
             name: {"nsfw": ref.get(name, {}).get("nsfw", False), "tags": ref.get(name, {}).get("tags") or []}
             for name in self.models
         }
+
+    def _censor_placeholder(self, reason: str) -> Image.Image:
+        """The placeholder for a censor reason, or black if the asset is missing."""
+        return self.censor_images.get(reason) or Image.new("RGB", (512, 512), (0, 0, 0))
 
     def _get_clip(self):
         """Lazily build the CLIP similarity model (CPU by default: keep the iGPU for SD)."""
@@ -200,10 +217,26 @@ class Worker:
         image = result.images[0]
         gen_time = time.time() - t
 
+        # Censor decision, mirroring the reference worker (worker/jobs/stable_diffusion.py):
+        # three reasons, each with its own placeholder image.  Order matters — the
+        # censorlist check takes precedence over the job's own flag for image choice.
+        # Note stock's censorlist does *not* bypass the NSFW classifier: it only forces
+        # the check to run and selects a different placeholder.
+        censor_reason = None
+        if self.censor_nsfw and not self.cfg.get("nsfw", True):
+            censor_reason = "SFW worker"
+        if any(word in prompt for word in self.censorlist):
+            censor_reason = "Censorlist"
+        elif payload.get("use_nsfw_censor", False):
+            censor_reason = "Requested"
+
         state = None
-        if payload.get("use_nsfw_censor", False) and self.safety.is_nsfw(image):
-            log.info("job %s censored (nsfw)", job_id)
-            image = (self.censor_image or Image.new("RGB", image.size, (0, 0, 0))).resize(image.size)
+        if censor_reason and self.safety.is_nsfw(image):
+            log.info("job %s censored (nsfw); reason=%s", job_id, censor_reason)
+            # Deviation from stock (deliberate): stock pastes the 512x512 placeholder
+            # regardless of the job's size; we resize it so a non-square job returns a
+            # correctly-sized image.
+            image = self._censor_placeholder(censor_reason).resize(image.size)
             state = "censored"
 
         # Stock skips the CSAM check when the image was already censored.

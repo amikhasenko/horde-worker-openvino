@@ -62,9 +62,16 @@ extra_slow_worker: true
 limit_max_steps: true
 
 # Safety checks.
-#   * nsfw censor: runs the OpenVINO safety checker when a job asks for censoring
-#     (payload `use_nsfw_censor`) and replaces NSFW results with a censor image.
+#   * nsfw censor: runs the OpenVINO safety checker and replaces NSFW results with a
+#     placeholder. It runs when any of these holds, in this order of precedence for
+#     which placeholder is used (same three reasons as the reference worker):
+#       - censor_nsfw is true and this worker advertises nsfw: false  -> "SFW worker"
+#       - the prompt contains a word from censorlist                  -> "Censorlist"
+#       - the job itself asks for censoring (payload use_nsfw_censor) -> "Requested"
+#     Like stock, censorlist does not bypass the classifier; it only forces the check.
 #   * csam: the ported CLIP-similarity heuristic, run on every uncensored image.
 # Both run on the CPU so the iGPU stays free for generation.
+censor_nsfw: false
+censorlist: []
 enable_csam: true
 csam_device: "CPU"
