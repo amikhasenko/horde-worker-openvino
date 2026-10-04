@@ -1,0 +1,31 @@
+# --- secrets: NEVER commit these ---
+# bridgeData.yaml holds the real Horde API key. Ship/edit bridgeData_template.yaml instead.
+bridgeData.yaml
+*.key
+.env
+
+# --- runtime state ---
+logs/
+*.log
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# --- local model / IR caches (multi-GB, all rebuildable) ---
+cache/
+models/
+*.bin
+*.xml
+*.npz
+*.safetensors
+*.ckpt
+
+# --- scratch ---
+tmp/
+out/
+*.png
+!assets/*.png
+
+# local venv / HF cache symlinks (developer convenience)
+.venv
+.hf-cache

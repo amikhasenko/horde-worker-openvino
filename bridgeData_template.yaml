@@ -1,0 +1,70 @@
+## AI Horde generation ("dreamer") worker — SD1.5 on an Intel iGPU via OpenVINO.
+##
+## Copy this file to `bridgeData.yaml` (which is git-ignored) and edit it.
+##   cp bridgeData_template.yaml bridgeData.yaml
+##
+## Slow-worker configuration: ~1.5 images/hour at 512x512/20 steps on a UHD iGPU.
+##   * max_power 8 -> max_pixels = 64*64*8*8 = 262144 = 512x512, which is what caps the
+##     resolution the server will send us. Raise it only if you accept longer jobs.
+##   * one thread, no batching: this hardware cannot do more than one image at a time.
+
+horde_url: "https://aihorde.net"
+
+# Must be unique horde-wide, or the server rejects the worker ("Wrong Credentials").
+dreamer_name: "OV-Dreamer-CHANGEME"
+
+# Your AI Horde API key (register at https://aihorde.net/register).
+# Leave blank to read the HORDE_API_KEY environment variable instead — which is
+# preferable, so the key never lands in a file on disk.
+api_key: ""
+
+# Where downloaded models and converted IR live. Everything below defaults to
+# subdirectories of this path if omitted.
+cache_home: "/path/to/cache"
+ov_dir: "/path/to/cache/ov"          # CLIP + safety-checker IR (tools/convert_ov_assets.py)
+ov_sd_dir: "/path/to/cache/ov_sd"    # exported SD1.5 pipelines (tools/convert_sd_single.py)
+
+# diffusers-format SD1.5 config used as the scaffold when converting a single-file
+# checkpoint (tools/convert_sd_single.py --config).  Either a local directory or a
+# Hugging Face repo id.
+sd15_config: "stable-diffusion-v1-5/stable-diffusion-v1-5"
+
+device: "GPU"                  # "GPU" = Intel iGPU, "CPU" = fallback (much slower)
+max_power: 8                   # -> 512x512 cap
+max_threads: 1
+queue_size: 0
+max_cached_pipelines: 2        # each compiled pipeline is ~2 GB of shared GPU memory
+
+# Models we advertise. Names must match the Horde's model reference exactly.
+# Add more with tools/add_model.py, then list them here.
+models:
+  - "stable_diffusion"
+model_dirs:
+  "stable_diffusion": "stable_diffusion"
+
+# Capabilities we deliberately do NOT claim (not implemented on this backend).
+nsfw: true
+allow_img2img: false
+allow_painting: false
+allow_post_processing: false
+allow_controlnet: false
+allow_lora: false
+require_upfront_kudos: false
+allow_unsafe_ipaddr: true
+priority_usernames: []
+blacklist: []
+
+# Slow-worker mode. This IS a server-side flag in the pop request (not just a local
+# setting): it makes the horde only send us jobs from users who opted in to
+# extra-slow processing. limit_max_steps caps how long a job can be. Both are
+# horde_sdk field names, verified against ImageGenerateJobPopRequest.
+extra_slow_worker: true
+limit_max_steps: true
+
+# Safety checks.
+#   * nsfw censor: runs the OpenVINO safety checker when a job asks for censoring
+#     (payload `use_nsfw_censor`) and replaces NSFW results with a censor image.
+#   * csam: the ported CLIP-similarity heuristic, run on every uncensored image.
+# Both run on the CPU so the iGPU stays free for generation.
+enable_csam: true
+csam_device: "CPU"

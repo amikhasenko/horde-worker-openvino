@@ -1,0 +1,83 @@
+NOTICE — attribution and provenance
+===================================
+
+horde-worker-openvino
+Copyright (C) 2026 amikhasenko
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU Affero General Public License as published by the Free
+Software Foundation, either version 3 of the License, or (at your option) any
+later version.  See the LICENSE file.  There is NO WARRANTY.
+
+It is licensed AGPL-3.0 (not merely a permissive license) because it is a
+derived work: parts of it are copied or ported from AI-Horde-Worker, which is
+AGPL-3.0.  Details below.
+
+
+Derived from AI-Horde-Worker
+----------------------------
+Upstream: https://github.com/Haidra-Org/AI-Horde-Worker  (AGPL-3.0)
+
+  * csam.py
+      Ported verbatim from `worker/csam.py` in AI-Horde-Worker.  The decision
+      rule and every threshold/boost constant are copied unchanged; only the
+      CLIP call is swapped for the OpenVINO implementation in ov_clip.py.
+
+  * clip_tokenizer.py
+      Vendored from AI-Horde-Worker's
+      `worker/ov_alchemy/clip_tokenizer.py`, which is itself a vendored,
+      torch-free copy of openai/CLIP's `clip/simple_tokenizer.py` (MIT,
+      Copyright (c) 2021 OpenAI — see below).
+
+  * assets/nsfw_censor_sfw_request.png
+    assets/nsfw_censor_csam.png
+      Censor placeholder images taken from AI-Horde-Worker's `assets/`.
+
+  * horde_client.py and worker.py mirror the request/response field names of
+      the reference worker (pop/submit payloads) so that they match what the
+      AI Horde server validates against.
+
+
+Bundled third-party code
+------------------------
+  * clip_tokenizer.py — openai/CLIP `simple_tokenizer.py`
+      MIT License, Copyright (c) 2021 OpenAI
+      https://github.com/openai/CLIP
+      The bundled BPE vocabulary file (bpe_simple_vocab_16e6.txt.gz, not
+      distributed in this repository) is likewise from openai/CLIP.
+
+  * safety.py reproduces the decision loop of diffusers'
+      `StableDiffusionSafetyChecker`
+      Apache License 2.0, Copyright (c) Hugging Face, Inc.
+      https://github.com/huggingface/diffusers
+
+  * samplers.py maps AI Horde sampler names to diffusers scheduler classes.
+      The name list mirrors hordelib's `SAMPLERS_MAP`
+      https://github.com/Haidra-Org/hordelib  (AGPL-3.0)
+
+
+Model weights
+-------------
+No model weights are distributed here.  The code downloads SD1.5 checkpoints,
+the CLIP ViT-L/14 weights and the Stable Diffusion safety checker from their
+original sources; each carries its own license, which you must comply with.
+
+
+AI-generated code
+-----------------
+Substantial parts of this codebase were written by an AI coding agent
+(Anthropic's Claude Code) under human direction and review.  It is published
+openly both to be useful and to comply with the AGPL under which it is received
+and redistributed: this repository is the Corresponding Source.
+
+What the license does and does not require, so the claim is not overstated:
+AGPL §2 permits running a covered work — and modifying it privately — with no
+conditions, so an unmodified or private instance may stay closed source.  §6
+requires the Corresponding Source whenever a copy is conveyed, which is why we
+publish.  §13 additionally requires anyone who modifies the Program and lets
+users interact with it over a network to offer those users the source.  A worker
+satisfies the "(if your version supports such interaction)" qualifier plainly:
+it exists only to interact remotely — the Horde server pops jobs from it, and
+the users whose prompts it processes are users of the service it provides.
+
+Review it before trusting it.
